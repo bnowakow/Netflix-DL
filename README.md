@@ -23,25 +23,20 @@ https://www.microsoft.com/en-eg/download/details.aspx?id=40784
    media tools are Windows executables, so use Windows for downloads that
    need them.
 
-4. The manifest request needs a Netflix email and password. You can pass them
-   through the `NETFLIX_EMAIL` and `NETFLIX_PASSWORD` environment variables.
-   To configure them in the file, go to the folder configs
-and add your email and password in Netflix in config.py (open the file with Notepad++), search for
-
-	"email": "enter your email address here", # Enter the email address of your Netflix account here
-	"password": "enter your password here", # Enter the password of your Netflix account here
-  
-and replace "enter your email address here" with the email of your account in Netflix, 
-and replace "enter your password here" with the password of your account in Netflix, and it will be like
-
-	"email": "david2021236@protonmail.com", # Enter the email address of your Netflix account here
-	"password": "25&ns&257", # Enter the password of your Netflix account here
+4. Manifest requests use the signed-in session when both `NetflixId` and
+   `SecureNetflixId` are available. If either cookie is missing, the app uses
+   email and password. `make run` prompts for missing credentials, hides password input, and saves the answers to
+   the Git-ignored `.env` file. You can also fill in `.env.sample` and save
+   it as `.env`, or supply `NETFLIX_EMAIL` and `NETFLIX_PASSWORD` as
+   environment variables. Environment variables take precedence over
+   `.env`, followed by credentials in `configs/config.py`.
 
 5. Install this Chrome extension
 
    After exporting Netflix cookies in Netscape format to `~/Downloads`, run
-   `make copy-cookies` to copy the newest valid Netflix export into the app's
-   cookie folder. Then run `make run`.
+   `make cookies-copy` to copy the newest valid Netflix export into the app's
+   cookie folder. Then run `make run`. Use `make cookies-remove` to clear the
+   app's imported and cached cookies.
 
 https://chrome.google.com/webstore/detail/get-cookiestxt/bgaddhkoddajcdgocldbbfleckgcbcid
 
@@ -184,7 +179,7 @@ To download the audio in a specific bitrate use
 
 If the metadata request returns an empty response, compare the title ID in the
 error with the URL in your browser. If Netflix rejects the session with HTTP 401,
-export fresh cookies from the signed-in Netflix tab and run `make copy-cookies`.
+export fresh cookies from the signed-in Netflix tab and run `make cookies-copy`.
 
 **Don't put any files in the folder configs\Tokens, the script will generate netflix_token.json by itself.**
 

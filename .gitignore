@@ -1,4 +1,6 @@
 /.venv/
+/.env
+/.download-retry.json
 /configs/Cookies/cookies.txt
 /configs/Cookies/cookies_nf.txt
 /configs/Tokens/

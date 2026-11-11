@@ -6,10 +6,11 @@ from Cryptodome.Hash import HMAC, SHA256
 from Cryptodome.PublicKey import RSA
 from pywidevine.cdm import cdm, deviceconfig
 from configs.config import tool
+from netflix_credentials import netflix_credentials
 import httpx
 
 class MSLClient:
-	def __init__(self, profiles=None, wv_keyexchange=False, proxies=None):
+	def __init__(self, profiles=None, wv_keyexchange=False, proxies=None, cookies=None):
 
 		self.session = requests.session()
 		self.session = httpx
@@ -25,17 +26,18 @@ class MSLClient:
 		######################################################################
 
 		self.config = tool().config("NETFLIX")
-		self.email = os.environ.get("NETFLIX_EMAIL", self.config["email"]).strip()
-		self.password = os.environ.get("NETFLIX_PASSWORD", self.config["password"])
-		if (
-			not self.email or self.email == "enter your email address here"
-			or not self.password.strip() or self.password == "enter your password here"
-		):
-			raise SystemExit(
-				"Manifest requests need your Netflix account email and password. "
-				"Set NETFLIX_EMAIL and NETFLIX_PASSWORD, or configure them in configs/config.py. "
-				"The exported cookies are used for metadata lookup."
-			)
+		cookies = cookies or {}
+		if cookies.get("NetflixId") and cookies.get("SecureNetflixId"):
+			self.user_auth = {
+				"scheme": "NETFLIXID",
+				"authdata": {"netflixid": cookies["NetflixId"], "securenetflixid": cookies["SecureNetflixId"]},
+			}
+		else:
+			email, password = netflix_credentials(self.config)
+			self.user_auth = {
+				"scheme": "EMAIL_PASSWORD",
+				"authdata": {"email": email, "password": password},
+			}
 		self.device = tool().devices()["NETFLIX-MANIFEST"]
 		self.save_rsa_location = self.config["token_file"]
 		self.languages = self.config["manifest_language"]
@@ -206,6 +208,10 @@ class MSLClient:
 		request_data = self.msl_request(payload)
 		response = self.session.post(self.nf_endpoints["manifest"], data=request_data,
 			params={"reqName": "manifest"})
+		if not response.is_success:
+			raise SystemExit(f"Netflix manifest request failed (HTTP {response.status_code}).")
+		if not response.content.strip():
+			raise SystemExit("Netflix returned an empty manifest response.")
 		manifest = json.loads(json.dumps(self.decrypt_response(response.text)))
 
 		if manifest.get("result"): 
@@ -215,8 +221,17 @@ class MSLClient:
 			self.license_path = manifest["result"]["links"]["license"]["href"]
 			return manifest
 
-		if manifest.get("errormsg"):
-			self.logger.info(manifest["errormsg"])
+		message = manifest.get("errormsg")
+		if self.user_auth["scheme"] == "EMAIL_PASSWORD" and (
+			str(manifest.get("internalcode")) == "5007" or message == "Email or password is incorrect."
+		):
+			raise SystemExit(
+				"Netflix rejected email/password authentication for the manifest request. "
+				"Try a fresh Netflix browser sign-in using the same email and password. "
+				"If it succeeds, the app's manifest authentication still needs investigation."
+			)
+		if message:
+			self.logger.info(message)
 			return None
 		else:
 			self.logger.info(manifest)
@@ -464,10 +479,7 @@ class MSLClient:
 		
 		header = self.header.copy()
 		header["handshake"] = is_handshake
-		header["userauthdata"] = {
-			"scheme": "EMAIL_PASSWORD",
-			"authdata": {"email": self.email, "password": self.password},
-		}
+		header["userauthdata"] = self.user_auth
 
 		header_envelope = self.msl_encrypt(self.session_keys, json.dumps(header))
 

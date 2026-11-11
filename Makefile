@@ -11,7 +11,19 @@ done)
 VENV_PYTHON := $(VENV)/bin/python
 endif
 
-.PHONY: build run copy-cookies claude-commit
+.PHONY: help build run cookies-copy cookies-remove codex-commit claude-commit
+.DEFAULT_GOAL := help
+
+help:
+	@echo "Netflix-DL targets"
+	@echo ""
+	@echo "  build          Create the virtual environment and install dependencies"
+	@echo "  run            Open the download dialog or pass CLI options with ARGS"
+	@echo "  cookies-copy   Copy the latest valid Netflix cookie export"
+	@echo "  cookies-remove Remove the app's imported and cached Netflix cookies"
+	@echo "  codex-commit   Commit staged changes with Codex, and optionally push"
+	@echo "  claude-commit  Commit staged changes with Claude, and optionally push"
+
 build: $(VENV)/.requirements-installed
 
 $(VENV_PYTHON):
@@ -29,8 +41,14 @@ else
 	"$(VENV_PYTHON)" NFripper.py $(ARGS)
 endif
 
-copy-cookies: $(VENV_PYTHON)
+cookies-copy: $(VENV_PYTHON)
 	"$(VENV_PYTHON)" copy_cookies.py
+
+cookies-remove:
+	$(RM) configs/Cookies/cookies.txt configs/Cookies/cookies_nf.txt
+
+codex-commit:
+	utilities/codex-commit.sh
 
 claude-commit:
 	utilities/claude-commit.sh

@@ -181,10 +181,11 @@ def MSLprofiles():
 
 class get_manifest:
 	
-	def __init__(self, args, nfid):
+	def __init__(self, args, nfid, cookies=None):
 		self.logger = logging.getLogger(__name__)
 		self.args = args
 		self.nfid = nfid
+		self.cookies = cookies
 		self.ripprocess = ripprocess()
 		self.profiles = MSLprofiles()
 		self.config = tool().config("NETFLIX")
@@ -321,7 +322,7 @@ class get_manifest:
 
 	def PyMSL(self, profiles):
 
-		client = MSLClient(profiles=profiles)
+		client = MSLClient(profiles=profiles, cookies=self.cookies)
 
 		try:
 			resp = client.load_playlist(int(self.nfid))

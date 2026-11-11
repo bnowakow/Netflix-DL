@@ -172,7 +172,7 @@ class netflix:
 		if resp.status_code in gateway_errors:
 			sys.exit(f"{status}: the metadata endpoint still failed after 3 attempts.")
 		if resp.status_code == 401:
-			sys.exit(f"{status}: session rejected. Export fresh cookies from your signed-in Netflix tab and run make copy-cookies.")
+			sys.exit(f"{status}: session rejected. Export fresh cookies from your signed-in Netflix tab and run make cookies-copy.")
 		if not resp.ok:
 			sys.exit(f"{status}: metadata request failed.")
 		if not resp.content.strip():
@@ -361,7 +361,7 @@ class netflix:
 			sys.exit(1)
 
 		try:
-			video_keys = get_keys.GettingKEYS_Netflixv2(IDNet, profilename)
+			video_keys = get_keys.GettingKEYS_Netflixv2(IDNet, profilename, cookies=self.cookies)
 			if not video_keys == []:
 				video_keys = list(set(video_keys))
 				video_keys = [profilename] + video_keys
@@ -722,7 +722,7 @@ class netflix:
 			return
 
 		VideoList, AudioList, SubtitleList, ForcedList, checkerinfo = get_manifest(
-			self.args, NetflixID
+			self.args, NetflixID, cookies=self.cookies
 		).LoadManifest()
 
 		if self.args.check:

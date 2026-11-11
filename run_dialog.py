@@ -1,9 +1,12 @@
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
 from pathlib import Path
+from tempfile import NamedTemporaryFile
+from uuid import uuid4
 
 
 MODES = {
@@ -17,6 +20,47 @@ TITLE = re.compile(
     r"(?:\w+/)?(?:title|watch)/[0-9]+(?:[/?#].*)?)"
 )
 SELECTION = re.compile(r"[1-9][0-9]*(?:-[1-9][0-9]*)?(?:,\s*[1-9][0-9]*(?:-[1-9][0-9]*)?)*")
+RETRY_FILE = Path(__file__).resolve().with_name(".download-retry.json")
+
+
+def load_retry():
+    try:
+        saved = json.loads(RETRY_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    if not isinstance(saved, dict):
+        return None
+    title, seasons, episodes = (saved.get(key) for key in ("title", "seasons", "episodes"))
+    if (
+        isinstance(title, str) and re.fullmatch(r"[0-9]+", title)
+        and isinstance(seasons, str) and re.fullmatch(r"[0-9]+(?:,[0-9]+)*", seasons)
+        and isinstance(episodes, str) and re.fullmatch(r"[0-9,~ -]*", episodes)
+    ):
+        return saved
+    return None
+
+
+def save_retry(title, seasons, episodes):
+    saved = {
+        "title": str(title),
+        "seasons": ",".join(map(str, seasons)),
+        "episodes": episodes or "",
+        "attempt": uuid4().hex,
+    }
+    with NamedTemporaryFile(mode="w", encoding="utf-8", dir=RETRY_FILE.parent, delete=False) as file:
+        temporary = Path(file.name)
+        try:
+            json.dump(saved, file)
+            file.close()
+            temporary.replace(RETRY_FILE)
+        finally:
+            temporary.unlink(missing_ok=True)
+    return saved
+
+
+def clear_retry(saved):
+    if saved and load_retry() == saved:
+        RETRY_FILE.unlink(missing_ok=True)
 
 
 class Cancelled(Exception):
@@ -92,7 +136,7 @@ def main():
             "3. Click Chrome's Extensions puzzle-piece icon and select "
             "Get cookies.txt LOCALLY.\n"
             "4. Set Export format to Netscape and click Export for the current tab.\n"
-            "5. Save the export to Downloads and run make copy-cookies.\n"
+            "5. Save the export to Downloads and run make cookies-copy.\n"
             "6. Run make run again. Keep the cookie file private."
         )
         store_url = (
@@ -102,7 +146,20 @@ def main():
         dialog("--cr-wrap", "--msgbox", message, "0", "70")
         sys.exit(f"{message}\n\nChrome Web Store\n{store_url}")
 
-    title = ask("Enter a Netflix title ID or title/watch URL.", TITLE, "Enter a numeric ID or a Netflix title/watch URL.")
+    saved = load_retry()
+    if saved:
+        episodes = saved["episodes"] or "All"
+        choice = dialog(
+            "--cr-wrap", "--menu",
+            f"Previous download did not finish.\nTitle ID: {saved['title']}\n"
+            f"Seasons: {saved['seasons']}\nEpisodes: {episodes}",
+            "0", "0", "0", "reuse", "Reuse these selections", "new", "Choose new selections",
+        )
+        if choice == "new":
+            saved = None
+    title = saved["title"] if saved else ask(
+        "Enter a Netflix title ID or title/watch URL.", TITLE, "Enter a numeric ID or a Netflix title/watch URL."
+    )
     choices = [item for name, (label, _) in MODES.items() for item in (name, label)]
     mode = dialog(
         "--menu",
@@ -111,6 +168,10 @@ def main():
         "0", "0", "0", *choices,
     )
     args = [title, *MODES[mode][1], "--interactive-selection"]
+    if saved:
+        args.extend(["-s", saved["seasons"]])
+        if saved["episodes"]:
+            args.extend(["-e", saved["episodes"]])
     os.execv(sys.executable, [sys.executable, str(root / "NFripper.py"), *args])
 
 
