@@ -4,7 +4,7 @@ from threading import Thread
 from urllib.parse import urlsplit
 import utils.modules.pycaption as pycaption
 from copy_cookies import read_netflix_export
-from run_dialog import select_episodes, select_seasons
+from run_dialog import clear_retry, save_retry, select_episodes, select_seasons
 from configs.config import tool
 from helpers.aria2 import aria2
 from helpers.dfxp_to_srt import dfxp_to_srt
@@ -361,7 +361,7 @@ class netflix:
 			sys.exit(1)
 
 		try:
-			video_keys = get_keys.GettingKEYS_Netflixv2(IDNet, profilename, cookies=self.cookies)
+			video_keys = get_keys.GettingKEYS_Netflixv2(IDNet, profilename, cookies=self.cookies, build=self.build)
 			if not video_keys == []:
 				video_keys = list(set(video_keys))
 				video_keys = [profilename] + video_keys
@@ -678,6 +678,11 @@ class netflix:
 			)
 			muxedFile = mkvmuxer.startMux()
 
+		if not self.args.novideo and not self.CorrectDecryptVideo:
+			raise SystemExit("Video processing failed.")
+		if muxedFile and not os.path.isfile(muxedFile):
+			raise SystemExit("Muxing failed. The output file was not created.")
+
 		if not self.args.keep:
 			self.ripprocess.do_clean(
 				TitleName, exclude=self.args.clean_exclude, added=self.args.clean_add
@@ -722,7 +727,7 @@ class netflix:
 			return
 
 		VideoList, AudioList, SubtitleList, ForcedList, checkerinfo = get_manifest(
-			self.args, NetflixID, cookies=self.cookies
+			self.args, NetflixID, cookies=self.cookies, build=self.build
 		).LoadManifest()
 
 		if self.args.check:
@@ -801,10 +806,11 @@ class netflix:
 
 		if choice.lower() == "y" or choice.lower() == "yes":
 			self.downloadItem(downloaddict)
+			return True
 		elif choice.lower() == "n" or choice.lower() == "no":
 			self.logger.info("Quitting...")
 
-		return
+		return False
 
 	def main_netflix(self):
 		self.cookies, self.build = self.read_userdata()
@@ -895,11 +901,15 @@ class netflix:
 			)
 
 		elif self.netflixType == "show":
+			seasonMatchNumber = []
+			episodes = None
 			if isAEpisode:
 				self.logger.info("\nID or URL belongs to episode...")
 				for season in data["video"]["seasons"]:
 					for episode in season["episodes"]:
 						if int(episode["id"]) == int(self.nfID):
+							seasonMatchNumber = [int(season["seq"])]
+							episodes = str(episode["seq"])
 							self.items.append(
 								{
 									"TitleName": "{} S{}E{} {}".format(
@@ -931,7 +941,7 @@ class netflix:
 				else:
 					if not season:
 						season = input("ENTER Season Number: ").strip()
-					seasonMatchNumber = self.EpisodesNumbersHandler.sortNumbers(str(season).lstrip("0"))
+					seasonMatchNumber = self.EpisodesNumbersHandler.sortNumbers(str(season))
 
 				AllowedEpisodesNumbers = (
 					self.EpisodesNumbersHandler.sortNumbers(str(episodes).lstrip("0") if episodes else "~")
@@ -963,6 +973,12 @@ class netflix:
 									}
 								)
 
+			retry = None
+			if seasonMatchNumber and not (self.args.check or self.args.license):
+				retry = save_retry(self.nfID, seasonMatchNumber, episodes, self.args)
+			if not self.items:
+				raise SystemExit("No episodes matched the selected seasons and episodes.")
+			completed = True
 			self.logger.info("\nTotal items will be downloaded: {}".format(len(self.items)))
 			for idx, epsiode in enumerate(self.items, start=1):
 				self.logger.info(
@@ -970,11 +986,14 @@ class netflix:
 						str(idx).zfill(2), str(len(self.items)).zfill(2)
 					)
 				)
-				self.getItem(
+				finished = self.getItem(
 					epsiode["NetflixID"],
 					self.ripprocess.RemoveCharcters(epsiode["TitleName"]),
 					epsiode["FolderName"],
-				)	
+				)
+				completed = completed and finished
+			if completed:
+				clear_retry(retry)
 
 		if self.args.check:
 			self.logger.info('\nCheck Result')

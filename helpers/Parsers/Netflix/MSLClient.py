@@ -10,7 +10,7 @@ from netflix_credentials import netflix_credentials
 import httpx
 
 class MSLClient:
-	def __init__(self, profiles=None, wv_keyexchange=False, proxies=None, cookies=None):
+	def __init__(self, profiles=None, wv_keyexchange=False, proxies=None, cookies=None, build=None):
 
 		self.session = requests.session()
 		self.session = httpx
@@ -27,7 +27,11 @@ class MSLClient:
 
 		self.config = tool().config("NETFLIX")
 		cookies = cookies or {}
+		self.manifest_cookies = {}
+		self.build = build or "v930f5871"
 		if cookies.get("NetflixId") and cookies.get("SecureNetflixId"):
+			self.manifest_cookies = {key: cookies[key] for key in ("NetflixId", "SecureNetflixId")}
+			self.nf_endpoints["manifest"] = "https://www.netflix.com/nq/msl_v1/cadmium/pbo_manifests/%5E1.0.0/router"
 			self.user_auth = {
 				"scheme": "NETFLIXID",
 				"authdata": {"netflixid": cookies["NetflixId"], "securenetflixid": cookies["SecureNetflixId"]},
@@ -154,6 +158,19 @@ class MSLClient:
 			self.logger.debug("rsa file not found")
 			self.session_keys["session_keys"] = self.generate_handshake()
 
+	def manifest_request_options(self, name):
+		if not self.manifest_cookies:
+			return {"params": {"reqName": name}} if name == "manifest" else {}
+		return {
+			"params": {
+				"reqName": name, "reqAttempt": "1", "reqPriority": "20",
+				"clienttype": "akira", "uiversion": self.build, "browsername": "chrome",
+				"browserversion": "131.0.0.0", "osname": "windows", "osversion": "10.0",
+			},
+			"cookies": self.manifest_cookies,
+			"headers": {"Content-Type": "application/json"},
+		}
+
 	def load_playlist(self, viewable_id):
 		
 		payload = {
@@ -205,9 +222,17 @@ class MSLClient:
 			},
 		}
 
+		if self.manifest_cookies:
+			payload.update(id=int(time.time() * 1000), esn=self.esn, languages=[self.languages])
+			payload["params"].update(
+				manifestVersion="v2", drmVersion=25, flavor="PRE_FETCH",
+				supportsAdBreakHydration=False,
+				profileGroups=[{"name": "default", "profiles": self.profiles}],
+			)
+
 		request_data = self.msl_request(payload)
 		response = self.session.post(self.nf_endpoints["manifest"], data=request_data,
-			params={"reqName": "manifest"})
+			**self.manifest_request_options("manifest"))
 		if not response.is_success:
 			raise SystemExit(f"Netflix manifest request failed (HTTP {response.status_code}).")
 		if not response.content.strip():
@@ -233,9 +258,11 @@ class MSLClient:
 		if message:
 			self.logger.info(message)
 			return None
-		else:
-			self.logger.info(manifest)
-			return None
+		error = manifest.get("error")
+		if isinstance(error, dict):
+			code = error.get("bladeRunnerCode") or error.get("displayCode") or error.get("code")
+			self.logger.error("Netflix rejected the manifest request (code %s).", code or "unknown")
+		return None
 
 	def decrypt_response(self, payload):
 		errored = False
@@ -304,6 +331,7 @@ class MSLClient:
 		response = self.session.post(
 			url=self.nf_endpoints["manifest"],
 			json=request,
+			**self.manifest_request_options("handshake"),
 		)
 		try:
 			if response.json().get("errordata"):

@@ -15,6 +15,11 @@ MODES = {
     "audio": ("Audio only", ["--ns", "--nv", "--keep"]),
     "subtitles": ("Subtitles only", ["--nv", "--na", "--keep"]),
 }
+QUALITY_FLAGS = {
+    "video_main": "--main", "video_high": "--high", "video_main480": "--main480",
+    "hevc": "--hevc", "hdr": "--hdr", "novideo": "--nv", "noaudio": "--na",
+    "nosubs": "--ns", "keep": "--keep",
+}
 TITLE = re.compile(
     r"(?:[0-9]+|https?://(?:www\.)?netflix\.com/"
     r"(?:\w+/)?(?:title|watch)/[0-9]+(?:[/?#].*)?)"
@@ -36,17 +41,26 @@ def load_retry():
         and isinstance(seasons, str) and re.fullmatch(r"[0-9]+(?:,[0-9]+)*", seasons)
         and isinstance(episodes, str) and re.fullmatch(r"[0-9,~ -]*", episodes)
     ):
+        flags = saved.get("quality_flags")
+        resolution = saved.get("resolution")
+        if not isinstance(flags, list) or any(flag not in QUALITY_FLAGS.values() for flag in flags):
+            saved.pop("quality_flags", None)
+        if not isinstance(resolution, str) or not re.fullmatch(r"[0-9]+", resolution):
+            saved.pop("resolution", None)
         return saved
     return None
 
 
-def save_retry(title, seasons, episodes):
+def save_retry(title, seasons, episodes, args):
     saved = {
         "title": str(title),
         "seasons": ",".join(map(str, seasons)),
         "episodes": episodes or "",
+        "quality_flags": [flag for field, flag in QUALITY_FLAGS.items() if getattr(args, field, False)],
         "attempt": uuid4().hex,
     }
+    if args.customquality:
+        saved["resolution"] = args.customquality[0]
     with NamedTemporaryFile(mode="w", encoding="utf-8", dir=RETRY_FILE.parent, delete=False) as file:
         temporary = Path(file.name)
         try:
@@ -149,26 +163,38 @@ def main():
     saved = load_retry()
     if saved:
         episodes = saved["episodes"] or "All"
+        flags = saved.get("quality_flags")
+        quality = "Not saved"
+        if flags is not None:
+            quality = next((name.title() for name, (_, options) in MODES.items() if options == flags), None)
+            quality = quality or (" ".join(flags) if flags else "Default")
+        if saved.get("resolution"):
+            quality += f" ({saved['resolution']}p)"
         choice = dialog(
             "--cr-wrap", "--menu",
             f"Previous download did not finish.\nTitle ID: {saved['title']}\n"
-            f"Seasons: {saved['seasons']}\nEpisodes: {episodes}",
-            "0", "0", "0", "reuse", "Reuse these selections", "new", "Choose new selections",
+            f"Seasons: {saved['seasons']}\nEpisodes: {episodes}\nQuality: {quality}",
+            "14", "64", "2", "reuse", "Reuse these selections", "new", "Choose new selections",
         )
         if choice == "new":
             saved = None
     title = saved["title"] if saved else ask(
         "Enter a Netflix title ID or title/watch URL.", TITLE, "Enter a numeric ID or a Netflix title/watch URL."
     )
-    choices = [item for name, (label, _) in MODES.items() for item in (name, label)]
-    mode = dialog(
-        "--menu",
-        "What do you want to download? Main and High both include audio and subtitles. "
-        "Picture quality depends on the title and the streams Netflix offers.",
-        "0", "0", "0", *choices,
-    )
-    args = [title, *MODES[mode][1], "--interactive-selection"]
+    flags = saved.get("quality_flags") if saved else None
+    if flags is None:
+        choices = [item for name, (label, _) in MODES.items() for item in (name, label)]
+        mode = dialog(
+            "--menu",
+            "What do you want to download? Main and High both include audio and subtitles. "
+            "Picture quality depends on the title and the streams Netflix offers.",
+            "0", "0", "0", *choices,
+        )
+        flags = MODES[mode][1]
+    args = [title, *flags, "--interactive-selection"]
     if saved:
+        if saved.get("resolution"):
+            args.extend(["-q", saved["resolution"]])
         args.extend(["-s", saved["seasons"]])
         if saved["episodes"]:
             args.extend(["-e", saved["episodes"]])
