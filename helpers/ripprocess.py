@@ -8,6 +8,7 @@ from collections.abc import Sequence
 from natsort import natsorted
 import logging
 import unicodedata, string
+import platform
 
 
 class EpisodesNumbersHandler:
@@ -732,13 +733,19 @@ class ripprocess(object):
             if not moded_decrypter
             else self.bin["mp4decrypt_moded"]
         ]
-        decrypt_command += ["--show-progress", encrypted, decrypted]
+        macos = platform.system() == "Darwin"
+        decrypt_command.append("--show-progress")
+        if not macos:
+            decrypt_command.extend([encrypted, decrypted])
 
         for key in keys:
             decrypt_command.append("--key")
             decrypt_command.append(
                 "{}:{}".format(key["ID"] if no_kid else key["KID"], key["KEY"])
             )
+
+        if macos:
+            decrypt_command.extend([encrypted, decrypted])
 
         self.logger.info("\nDecrypting KEYS: ")
         for key in keys:

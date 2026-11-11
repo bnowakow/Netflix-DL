@@ -1,4 +1,5 @@
 VENV ?= .venv
+CODEX ?= codex
 
 ifeq ($(OS),Windows_NT)
 PYTHON ?= python
@@ -11,19 +12,25 @@ done)
 VENV_PYTHON := $(VENV)/bin/python
 endif
 
-.PHONY: help build run cookies-copy cookies-remove codex-commit claude-commit github-sync
+.PHONY: help build run cookies-copy cookies-remove codex-commit claude-commit github-sync install-skills codex-document
 .DEFAULT_GOAL := help
 
 help:
-	@echo "Netflix-DL targets"
-	@echo ""
-	@echo "  build          Create the virtual environment and install dependencies"
-	@echo "  run            Open the download dialog or pass CLI options with ARGS"
-	@echo "  cookies-copy   Copy the latest valid Netflix cookie export"
-	@echo "  cookies-remove Remove the app's imported and cached Netflix cookies"
-	@echo "  codex-commit   Commit staged changes with Codex, and optionally push"
-	@echo "  claude-commit  Commit staged changes with Claude, and optionally push"
-	@echo "  github-sync    Sync upstream/main into the fork and merge main into bnowakow"
+	@printf 'Netflix-DL targets\n\n'
+	@printf '  \033[1;94m%s\033[0m\n' 'Application'
+	@printf '    %-16s %s\n' 'build' 'Create the virtual environment and install dependencies'
+	@printf '    %-16s %s\n' 'run' 'Open the download dialog or pass CLI options with ARGS'
+	@printf '\n'
+	@printf '  \033[1;94m%s\033[0m\n' 'Netflix cookies'
+	@printf '    %-16s %s\n' 'cookies-copy' 'Copy the latest valid Netflix cookie export'
+	@printf '    %-16s %s\n' 'cookies-remove' "Remove the app's imported and cached Netflix cookies"
+	@printf '\n'
+	@printf '  \033[1;94m%s\033[0m\n' 'Repository'
+	@printf '    %-16s %s\n' 'github-sync' 'Sync upstream/main into the fork and merge main into bnowakow'
+	@printf '    %-16s %s\n' 'codex-commit' 'Commit staged changes with Codex, and optionally push'
+	@printf '    %-16s %s\n' 'claude-commit' 'Commit staged changes with Claude, and optionally push'
+	@printf '    %-16s %s\n' 'install-skills' 'Install repository skills into the Codex user skills directory'
+	@printf '    %-16s %s\n' 'codex-document' 'Refresh CHANGES_FROM_MAIN.md with Codex'
 
 build: $(VENV)/.requirements-installed
 
@@ -53,6 +60,20 @@ codex-commit:
 
 claude-commit:
 	utilities/claude-commit.sh
+
+install-skills:
+	@set -e; \
+	destination="$${CODEX_HOME:-$$HOME/.codex}/skills"; \
+	for skill in skills/*/SKILL.md; do \
+		source_dir=$${skill%/SKILL.md}; \
+		install_dir="$$destination/$${source_dir##*/}"; \
+		mkdir -p "$$install_dir"; \
+		cp -R "$$source_dir/." "$$install_dir/"; \
+		printf 'Installed %s\n' "$$install_dir"; \
+	done
+
+codex-document:
+	"$(CODEX)" exec --sandbox workspace-write 'Use the netflix-dl-document-changes skill at skills/netflix-dl-document-changes/SKILL.md. Follow its instructions and update CHANGES_FROM_MAIN.md.'
 
 github-sync:
 	@status=$$(git status --porcelain) && if [ -n "$$status" ]; then \

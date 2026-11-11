@@ -19,9 +19,18 @@ https://www.microsoft.com/en-eg/download/details.aspx?id=40784
    `make run ARGS="--help"` to see the options, or pass a title and flags with
    `make run ARGS="80014749 --high"`. On macOS and Linux, Make looks for Python
    3.8–3.10 automatically. You can also set `PYTHON` to an executable path when
-   creating the environment. The bundled
-   media tools are Windows executables, so use Windows for downloads that
-   need them.
+   creating the environment.
+
+   On macOS, install the native media tools and then run `make run`.
+
+   ```sh
+   brew install aria2 bento4 ffmpeg media-info mkvtoolnix
+   ```
+
+   For protected video that needs a new license, the bundled `wv_cvt.exe`
+   helper also needs a compatible `wine` executable on `PATH`. Audio and
+   subtitle downloads can use the native tools without Wine. Windows uses
+   the bundled executables.
 
 4. Manifest requests use the signed-in session when both `NetflixId` and
    `SecureNetflixId` are available. If either cookie is missing, the app uses

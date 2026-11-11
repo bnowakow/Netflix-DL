@@ -1,4 +1,5 @@
 import argparse, configparser,  glob, json, logging, os, re, shutil, subprocess, sys, time, ffmpy, pycountry, requests, tqdm
+import platform
 from bs4 import BeautifulSoup
 from threading import Thread
 from urllib.parse import urlsplit
@@ -476,7 +477,7 @@ class netflix:
 		if not only1key == []:
 			KEYS = only1key
 
-		self.ripprocess.mp4_decrypt(
+		decrypted = self.ripprocess.mp4_decrypt(
 			encrypted=inputVideo,
 			decrypted=outputVideoTemp,
 			keys=KEYS,
@@ -484,6 +485,8 @@ class netflix:
 			no_kid=False,
 			silent=silent,
 		)
+		if platform.system() == "Darwin" and not decrypted:
+			return False
 
 		if not "NETFLIX".lower() in list(
 			map(lambda x: x.lower(), self.video_settings["skip_video_demux"])
@@ -532,6 +535,24 @@ class netflix:
 				os.remove(f)
 
 	def downloadItem(self, item):
+		if platform.system() == "Darwin":
+			required = []
+			if not self.args.novideo or not self.args.noaudio:
+				required.append("ffmpeg")
+				if not self.args.noaria2c:
+					required.append("aria2c")
+			if not self.args.novideo:
+				required.extend(["mp4decrypt", "mp4dump"])
+			if not self.args.noaudio:
+				required.append("MediaInfo")
+			if not self.args.novideo and not self.args.noaudio:
+				required.append("mkvmerge")
+			missing = [self.bin[name] for name in required if not shutil.which(self.bin[name])]
+			if missing:
+				raise SystemExit(
+					f"Missing macOS tools on PATH: {', '.join(missing)}. "
+					"Install them with brew install aria2 bento4 ffmpeg media-info mkvtoolnix."
+				)
 
 		TitleName = item["TitleName"]
 		FolderName = item["FolderName"]

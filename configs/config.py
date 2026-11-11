@@ -113,6 +113,17 @@ Config["NETFLIX"] = {
 	"androidEsn": "NFCDIE-03-{}".format(utils().random_hex(30)),
 }
 
+MACOS_BIN = {
+	"mp4decrypt": "mp4decrypt",
+	"mp4decrypt_moded": "mp4decrypt",
+	"mp4dump": "mp4dump",
+	"ffmpeg": "ffmpeg",
+	"ffprobe": "ffprobe",
+	"MediaInfo": "mediainfo",
+	"mkvmerge": "mkvmerge",
+	"aria2c": "aria2c",
+}
+
 #####################################(DIRS & FILES)##############################
 
 def make_dirs():
@@ -142,6 +153,8 @@ class tool:
 		return Config[service]
 
 	def bin(self):
+		if platform.system() == "Darwin":
+			return MACOS_BIN
 		return BIN
 
 	def vpn(self):

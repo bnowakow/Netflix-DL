@@ -1,4 +1,8 @@
 import time, os, subprocess, json, logging, base64
+import platform
+import shutil
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from helpers.Parsers.Netflix.MSLClient import MSLClient
 from configs.config import tool
 from pywidevine.decrypt.wvdecryptcustom import WvDecrypt
@@ -13,6 +17,18 @@ original_license_request_path = dirPath + "\\req_test.bin"
 original_license_response_path = dirPath + "\\lic_res.b64"
 
 logger = logging.getLogger(__name__)
+
+
+def convert_with_wine(wine, filename, data):
+	with TemporaryDirectory() as directory:
+		workdir = Path(directory)
+		(workdir / filename).write_bytes(data)
+		converter = Path(dirPath) / "wv_cvt.exe"
+		try:
+			subprocess.run([wine, str(converter), filename], cwd=workdir, check=True)
+			return (workdir / "TempFile_2209").read_bytes()
+		except (OSError, subprocess.CalledProcessError):
+			raise SystemExit("The bundled license helper failed under Wine on macOS.")
 
 '''			"av1-main-L20-dash-cbcs-prk",
 			"av1-main-L21-dash-cbcs-prk",
@@ -115,6 +131,10 @@ def __profiles(profile, addHEVCDO=False):
 	return profiles
 
 def GettingKEYS_Netflixv2(nfID, profile, cookies=None, build=None): #
+	macos = platform.system() == "Darwin"
+	wine = shutil.which("wine") if macos else None
+	if macos and not wine:
+		raise SystemExit("This video needs the bundled Windows license helper. Put a compatible Wine runtime on PATH or run this download on Windows.")
 	
 	KEYS = []
 
@@ -163,13 +183,16 @@ def GettingKEYS_Netflixv2(nfID, profile, cookies=None, build=None): #
 	)
 	original_challenge = wvdecrypt.get_challenge()
     
-	with open(original_license_request_path, "wb") as f:
-		f.write(base64.b64encode(original_challenge))
-		f.close()
-	subprocess.run([wv_cvt, original_license_request_path])
-	with open("TempFile_2209", "rb") as f:
-		modded_challenge = base64.b64decode(f.read())
-		f.close()
+	if macos:
+		modded_challenge = base64.b64decode(convert_with_wine(wine, "req_test.bin", base64.b64encode(original_challenge)))
+	else:
+		with open(original_license_request_path, "wb") as f:
+			f.write(base64.b64encode(original_challenge))
+			f.close()
+		subprocess.run([wv_cvt, original_license_request_path])
+		with open("TempFile_2209", "rb") as f:
+			modded_challenge = base64.b64decode(f.read())
+			f.close()
 
 	current_sessionId = str(time.time()).replace(".", "")[0:-2]
 	data = client.get_license(modded_challenge, current_sessionId)
@@ -180,13 +203,16 @@ def GettingKEYS_Netflixv2(nfID, profile, cookies=None, build=None): #
 		logger.error("MSL LICENSE Error Message: {}".format(data))
 		return KEYS
 
-	with open(original_license_response_path, "w") as f:
-		f.write(license_b64)
-		f.close()
-	subprocess.run([wv_cvt, original_license_response_path])
-	with open("TempFile_2209", "rb") as f:
-		modded_license = f.read()
-		f.close()
+	if macos:
+		modded_license = convert_with_wine(wine, "lic_res.b64", license_b64.encode("ascii"))
+	else:
+		with open(original_license_response_path, "w") as f:
+			f.write(license_b64)
+			f.close()
+		subprocess.run([wv_cvt, original_license_response_path])
+		with open("TempFile_2209", "rb") as f:
+			modded_license = f.read()
+			f.close()
     
 	wvdecrypt.update_license(modded_license)
 	Correct, keyswvdecrypt = wvdecrypt.start_process()
