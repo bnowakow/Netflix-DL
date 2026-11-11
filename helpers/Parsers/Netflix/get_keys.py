@@ -174,8 +174,23 @@ def __profiles(profile, addHEVCDO=False):
 
 	return profiles
 
+def license_device(directory):
+	device_dir = Path(directory).expanduser().resolve()
+	for filename in ("device_private_key", "device_client_id_blob"):
+		if not (device_dir / filename).is_file():
+			raise SystemExit(f"NETFLIX_LICENSE_DEVICE_DIR is missing {filename}.")
+	return {
+		**tool().devices()["NETFLIX-LICENSE"],
+		"name": str(device_dir),
+		"description": "external Chrome Widevine device",
+		"vmp": (device_dir / "device_vmp_blob").is_file(),
+	}
+
+
 def GettingKEYS_Netflixv2(nfID, profile, cookies=None, build=None): #
-	uses_wine = platform.system() in ("Darwin", "Linux")
+	device_directory = os.environ.get("NETFLIX_LICENSE_DEVICE_DIR")
+	device = license_device(device_directory) if device_directory else tool().devices()["NETFLIX-LICENSE"]
+	uses_wine = not device_directory and platform.system() in ("Darwin", "Linux")
 	wine = shutil.which("wine") if uses_wine else None
 	if uses_wine and not wine:
 		raise SystemExit("This video needs the bundled Windows license helper. Put a compatible Wine runtime on PATH or run this download on Windows.")
@@ -220,14 +235,14 @@ def GettingKEYS_Netflixv2(nfID, profile, cookies=None, build=None): #
 
 	cert_data_b64 = "CAUSwwUKvQIIAxIQ5US6QAvBDzfTtjb4tU/7QxiH8c+TBSKOAjCCAQoCggEBAObzvlu2hZRsapAPx4Aa4GUZj4/GjxgXUtBH4THSkM40x63wQeyVxlEEo1D/T1FkVM/S+tiKbJiIGaT0Yb5LTAHcJEhODB40TXlwPfcxBjJLfOkF3jP6wIlqbb6OPVkDi6KMTZ3EYL6BEFGfD1ag/LDsPxG6EZIn3k4S3ODcej6YSzG4TnGD0szj5m6uj/2azPZsWAlSNBRUejmP6Tiota7g5u6AWZz0MsgCiEvnxRHmTRee+LO6U4dswzF3Odr2XBPD/hIAtp0RX8JlcGazBS0GABMMo2qNfCiSiGdyl2xZJq4fq99LoVfCLNChkn1N2NIYLrStQHa35pgObvhwi7ECAwEAAToQdGVzdC5uZXRmbGl4LmNvbRKAA4TTLzJbDZaKfozb9vDv5qpW5A/DNL9gbnJJi/AIZB3QOW2veGmKT3xaKNQ4NSvo/EyfVlhc4ujd4QPrFgYztGLNrxeyRF0J8XzGOPsvv9Mc9uLHKfiZQuy21KZYWF7HNedJ4qpAe6gqZ6uq7Se7f2JbelzENX8rsTpppKvkgPRIKLspFwv0EJQLPWD1zjew2PjoGEwJYlKbSbHVcUNygplaGmPkUCBThDh7p/5Lx5ff2d/oPpIlFvhqntmfOfumt4i+ZL3fFaObvkjpQFVAajqmfipY0KAtiUYYJAJSbm2DnrqP7+DmO9hmRMm9uJkXC2MxbmeNtJHAHdbgKsqjLHDiqwk1JplFMoC9KNMp2pUNdX9TkcrtJoEDqIn3zX9p+itdt3a9mVFc7/ZL4xpraYdQvOwP5LmXj9galK3s+eQJ7bkX6cCi+2X+iBmCMx4R0XJ3/1gxiM5LiStibCnfInub1nNgJDojxFA3jH/IuUcblEf/5Y0s1SzokBnR8V0KbA=="
 
-	device = tool().devices()["NETFLIX-LICENSE"]
-
 	wvdecrypt = WvDecrypt(
 		init_data_b64=init_data_b64, cert_data_b64=cert_data_b64, device=device
 	)
 	original_challenge = wvdecrypt.get_challenge()
     
-	if uses_wine:
+	if device_directory:
+		modded_challenge = original_challenge
+	elif uses_wine:
 		modded_challenge = base64.b64decode(convert_with_wine(wine, "req_test.bin", base64.b64encode(original_challenge)))
 	else:
 		with open(original_license_request_path, "wb") as f:
@@ -239,7 +254,7 @@ def GettingKEYS_Netflixv2(nfID, profile, cookies=None, build=None): #
 			f.close()
 
 	current_sessionId = str(time.time()).replace(".", "")[0:-2]
-	data = client.get_license(modded_challenge, current_sessionId)
+	data = client.get_license(modded_challenge, current_sessionId, external_device=bool(device_directory))
 
 	try:
 		license_b64 = data["result"][0]["licenseResponseBase64"]
@@ -247,7 +262,9 @@ def GettingKEYS_Netflixv2(nfID, profile, cookies=None, build=None): #
 		logger.error("MSL LICENSE Error Message: {}".format(data))
 		return KEYS
 
-	if uses_wine:
+	if device_directory:
+		modded_license = license_b64
+	elif uses_wine:
 		modded_license = convert_with_wine(wine, "lic_res.b64", license_b64.encode("ascii"))
 	else:
 		with open(original_license_response_path, "w") as f:

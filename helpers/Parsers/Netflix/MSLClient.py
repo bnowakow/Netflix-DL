@@ -562,7 +562,7 @@ class MSLClient:
 
 		return json.dumps(encryption_envelope).encode("utf8")
 
-	def get_license(self, challenge, session_id):
+	def get_license(self, challenge, session_id, *, external_device=False):
 
 		if not isinstance(challenge, bytes):
 			raise TypeError("challenge must be of type bytes")
@@ -608,9 +608,17 @@ class MSLClient:
 			raise SystemExit("Netflix returned an empty license response.")
 
 		license_data = self.decrypt_response(resp.text)
-		if license_data and license_data.get("result"):
-			return license_data
 		error = (license_data or {}).get("error")
+		results = (license_data or {}).get("result")
+		if results:
+			error = results[0].get("error", error)
 		if isinstance(error, dict) and error.get("code") == "DEVICE_EOL_FINAL":
-			raise SystemExit("Netflix rejected the bundled license client as end of life (DEVICE_EOL_FINAL, 3078).")
+			if external_device:
+				raise SystemExit("Netflix rejected the configured license device as end of life (DEVICE_EOL_FINAL, 3078).")
+			raise SystemExit(
+				"Netflix rejected the bundled license client as end of life (DEVICE_EOL_FINAL, 3078). "
+				"Set NETFLIX_LICENSE_DEVICE_DIR to a compatible Chrome Widevine device directory and retry."
+			)
+		if results and results[0].get("licenseResponseBase64"):
+			return license_data
 		raise SystemExit("Netflix did not return a usable license.")

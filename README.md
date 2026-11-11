@@ -78,6 +78,21 @@ https://www.microsoft.com/en-eg/download/details.aspx?id=40784
    subtitle downloads can use the native tools without Wine. Windows uses
    the bundled executables.
 
+   If Netflix rejects the bundled client with `DEVICE_EOL_FINAL` (3078),
+   you can try a compatible Chrome Widevine device you already have
+   provisioned. Point the app at its directory with this command.
+
+   ```sh
+   NETFLIX_LICENSE_DEVICE_DIR="/absolute/path/to/device" make run
+   ```
+
+   The directory must contain `device_private_key` and
+   `device_client_id_blob`. If it contains `device_vmp_blob`, the app
+   includes it in the request. Keep these files outside the checkout.
+   This mode uses the existing Python Widevine code without Wine.
+   Netflix must accept the configured device before video processing can
+   continue.
+
 4. Manifest requests use the signed-in session when both `NetflixId` and
    `SecureNetflixId` are available. If either cookie is missing, the app uses
    email and password. `make run` prompts for missing credentials, hides password input, and saves the answers to
