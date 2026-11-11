@@ -3,7 +3,8 @@ from bs4 import BeautifulSoup
 from threading import Thread
 from urllib.parse import urlsplit
 import utils.modules.pycaption as pycaption
-from http.cookiejar import MozillaCookieJar
+from copy_cookies import read_netflix_export
+from run_dialog import select_episodes, select_seasons
 from configs.config import tool
 from helpers.aria2 import aria2
 from helpers.dfxp_to_srt import dfxp_to_srt
@@ -87,18 +88,16 @@ class netflix:
 		cookies = None
 		build = None
 
-		if not os.path.isfile(self.config["cookies_file"]):
+		if os.path.isfile(self.config["cookies_txt"]) or not os.path.isfile(self.config["cookies_file"]):
 			try:
-				cj = MozillaCookieJar(self.config["cookies_txt"])
-				cj.load()
-			except Exception:
-				print("invalid netscape format cookies file")
-				sys.exit()
+				cookies = read_netflix_export(self.config["cookies_txt"])
+			except FileNotFoundError:
+				sys.exit("Missing configs/Cookies/cookies.txt. Export your signed-in Netflix cookies in Netscape format.")
+			except (OSError, ValueError):
+				sys.exit("Could not read configs/Cookies/cookies.txt. Export only the Netflix tab in Netscape format.")
 
-			cookies = dict()
-
-			for cookie in cj:
-				cookies[cookie.name] = cookie.value
+			if not cookies.get("NetflixId"):
+				sys.exit("The cookie export has no usable NetflixId. Export fresh cookies while signed in to Netflix.")
 
 			build = self.get_build(cookies)
 			self.save(cookies, build)
@@ -124,7 +123,7 @@ class netflix:
 		return cookies, build
 
 	def shakti_api(self, nfid): #
-		url = f"https://www.netflix.com/nq/website/memberapi/{self.build}/metadata"
+		url = "https://www.netflix.com/nq/website/memberapi/release/metadata"
 		headers = {
 			"Accept": "*/*",
 			"Accept-Encoding": "gzip, deflate, br",
@@ -156,26 +155,35 @@ class netflix:
 			"languages": self.config["metada_language"],
 		}
 
-		while True:
-			resp = requests.get(
-				url=url, headers=headers, params=params, cookies=self.cookies
-			)
-
-			if resp.status_code == 401:
-				self.logger.warning("401 Unauthorized, cookies is invalid.")
-			elif resp.text.strip() == "":
-				self.logger.error("title is not available in your Netflix region.")
-				exit(-1)
-
+		gateway_errors = {502, 503, 504}
+		for delay in (1, 2, None):
 			try:
-				t = resp.json()["video"]["type"]
-				return resp.json()
-			except Exception:
-				os.remove(self.config["cookies_file"])
-				self.logger.warning(
-					"Error getting metadata: Cookies expired\nplease fetch new cookies.txt"
+				resp = requests.get(
+					url=url, headers=headers, params=params, cookies=self.cookies, timeout=30
 				)
-				exit(-1)
+			except requests.RequestException:
+				sys.exit(f"Could not reach Netflix's metadata endpoint for title {nfid}. Check your connection and retry.")
+			if resp.status_code not in gateway_errors or delay is None:
+				break
+			self.logger.warning("Netflix metadata returned HTTP %s. Retrying in %s seconds.", resp.status_code, delay)
+			time.sleep(delay)
+
+		status = f"Netflix metadata for title {nfid} (HTTP {resp.status_code})"
+		if resp.status_code in gateway_errors:
+			sys.exit(f"{status}: the metadata endpoint still failed after 3 attempts.")
+		if resp.status_code == 401:
+			sys.exit(f"{status}: session rejected. Export fresh cookies from your signed-in Netflix tab and run make copy-cookies.")
+		if not resp.ok:
+			sys.exit(f"{status}: metadata request failed.")
+		if not resp.content.strip():
+			sys.exit(f"{status}: empty response. Check the title ID against your browser URL. The response does not establish regional availability.")
+
+		try:
+			data = resp.json()
+			data["video"]["type"]
+		except (ValueError, KeyError, TypeError):
+			sys.exit(f"{status}: response did not contain video metadata. Check the title ID and confirm the title opens in the same browser profile used to export cookies.")
+		return data
 
 	def Search(self, query):
 		session = requests.Session()
@@ -914,20 +922,19 @@ class netflix:
 								}
 							)
 			else:
-				seasonMatchNumber = (
-					self.EpisodesNumbersHandler.sortNumbers(
-						str(self.args.season).lstrip("0")
-					)
-					if self.args.season
-					else self.EpisodesNumbersHandler.sortNumbers (str(input("ENTER Season Number: ").strip()).lstrip("0"))
-				)
+				season = self.args.season
+				episodes = self.args.episodeStart
+				if not season and getattr(self.args, "interactive_selection", False):
+					seasonMatchNumber = select_seasons(data["video"])
+					if not episodes:
+						episodes = select_episodes()
+				else:
+					if not season:
+						season = input("ENTER Season Number: ").strip()
+					seasonMatchNumber = self.EpisodesNumbersHandler.sortNumbers(str(season).lstrip("0"))
 
 				AllowedEpisodesNumbers = (
-					self.EpisodesNumbersHandler.sortNumbers(
-						str(self.args.episodeStart).lstrip("0")
-					)
-					if self.args.episodeStart
-					else self.EpisodesNumbersHandler.sortNumbers("~")
+					self.EpisodesNumbersHandler.sortNumbers(str(episodes).lstrip("0") if episodes else "~")
 				)
 
 				for season in data["video"]["seasons"]:

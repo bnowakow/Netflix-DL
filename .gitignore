@@ -1,0 +1,5 @@
+/.venv/
+/configs/Cookies/cookies.txt
+/configs/Cookies/cookies_nf.txt
+/configs/Tokens/
+__pycache__/

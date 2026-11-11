@@ -25,8 +25,17 @@ class MSLClient:
 		######################################################################
 
 		self.config = tool().config("NETFLIX")
-		self.email = self.config["email"]
-		self.password = self.config["password"]
+		self.email = os.environ.get("NETFLIX_EMAIL", self.config["email"]).strip()
+		self.password = os.environ.get("NETFLIX_PASSWORD", self.config["password"])
+		if (
+			not self.email or self.email == "enter your email address here"
+			or not self.password.strip() or self.password == "enter your password here"
+		):
+			raise SystemExit(
+				"Manifest requests need your Netflix account email and password. "
+				"Set NETFLIX_EMAIL and NETFLIX_PASSWORD, or configure them in configs/config.py. "
+				"The exported cookies are used for metadata lookup."
+			)
 		self.device = tool().devices()["NETFLIX-MANIFEST"]
 		self.save_rsa_location = self.config["token_file"]
 		self.languages = self.config["manifest_language"]

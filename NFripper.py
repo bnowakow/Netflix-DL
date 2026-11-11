@@ -3,6 +3,7 @@ from configs.config import tool
 from helpers.proxy_environ import proxy_env
 from datetime import datetime
 from services.netflix import netflix
+from run_dialog import Cancelled
 
 script_name = "NF Ripper"
 script_ver = "2.0.1.0"
@@ -60,6 +61,7 @@ if __name__ == "__main__":
     parser.add_argument("--clean-exclude", dest="clean_exclude", nargs="*", help="add more extension of files to not be deleted", default=[],)
     parser.add_argument("--log-level", default="info", dest="log_level", choices=["debug", "info", "error", "warning"], help="choose level")
     parser.add_argument("--log-file", dest="log_file", help="set log file for debug", default=None)
+    parser.add_argument("--interactive-selection", action="store_true", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     start = datetime.now()
@@ -120,7 +122,10 @@ if __name__ == "__main__":
     )
 
     netflix_ = netflix(args, commands)
-    netflix_.main_netflix()
+    try:
+        netflix_.main_netflix()
+    except Cancelled:
+        raise SystemExit(0)
 
     print(
         "\nNFripper took {} Sec".format(

@@ -10,7 +10,22 @@ https://www.microsoft.com/en-eg/download/details.aspx?id=40784
 
 3. Run install.requirements.bat
 
-4. Go to the folder configs
+   If you have GNU Make, `make build` creates a local `.venv` and installs
+   `requirements.txt`. After completing the cookie setup below, `make run`
+   opens a terminal dialog for the title and download mode. For series, it
+   fetches the available seasons and lets you select one or more before
+   entering an optional episode range. Install `dialog` first if needed (`brew install dialog`
+   on macOS). To bypass the dialog, pass `ARGS` explicitly. Use
+   `make run ARGS="--help"` to see the options, or pass a title and flags with
+   `make run ARGS="80014749 --high"`. On macOS and Linux, Make looks for Python
+   3.8–3.10 automatically. You can also set `PYTHON` to an executable path when
+   creating the environment. The bundled
+   media tools are Windows executables, so use Windows for downloads that
+   need them.
+
+4. The manifest request needs a Netflix email and password. You can pass them
+   through the `NETFLIX_EMAIL` and `NETFLIX_PASSWORD` environment variables.
+   To configure them in the file, go to the folder configs
 and add your email and password in Netflix in config.py (open the file with Notepad++), search for
 
 	"email": "enter your email address here", # Enter the email address of your Netflix account here
@@ -23,6 +38,10 @@ and replace "enter your password here" with the password of your account in Netf
 	"password": "25&ns&257", # Enter the password of your Netflix account here
 
 5. Install this Chrome extension
+
+   After exporting Netflix cookies in Netscape format to `~/Downloads`, run
+   `make copy-cookies` to copy the newest valid Netflix export into the app's
+   cookie folder. Then run `make run`.
 
 https://chrome.google.com/webstore/detail/get-cookiestxt/bgaddhkoddajcdgocldbbfleckgcbcid
 
@@ -163,8 +182,9 @@ To download the audio in a specific bitrate use
 
 `python NFripper.py 81185548 --audio-bitrate 384`
 
-**If you got the error message "title is not available in your Netflix region" in configs\Cookies
-delete cookies_nf.txt and add a new cookies.txt, or change the VPN if you are using a VPN, not every VPN will work with this script.**
+If the metadata request returns an empty response, compare the title ID in the
+error with the URL in your browser. If Netflix rejects the session with HTTP 401,
+export fresh cookies from the signed-in Netflix tab and run `make copy-cookies`.
 
 **Don't put any files in the folder configs\Tokens, the script will generate netflix_token.json by itself.**
 
