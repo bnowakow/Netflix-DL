@@ -485,7 +485,7 @@ class netflix:
 			no_kid=False,
 			silent=silent,
 		)
-		if platform.system() == "Darwin" and not decrypted:
+		if platform.system() in ("Darwin", "Linux") and not decrypted:
 			return False
 
 		if not "NETFLIX".lower() in list(
@@ -535,7 +535,7 @@ class netflix:
 				os.remove(f)
 
 	def downloadItem(self, item):
-		if platform.system() == "Darwin":
+		if platform.system() in ("Darwin", "Linux"):
 			required = []
 			if not self.args.novideo or not self.args.noaudio:
 				required.append("ffmpeg")
@@ -550,8 +550,8 @@ class netflix:
 			missing = [self.bin[name] for name in required if not shutil.which(self.bin[name])]
 			if missing:
 				raise SystemExit(
-					f"Missing macOS tools on PATH: {', '.join(missing)}. "
-					"Install them with brew install aria2 bento4 ffmpeg media-info mkvtoolnix."
+					f"Missing media tools on PATH: {', '.join(missing)}. "
+					"Install the missing tools or run with Docker Compose."
 				)
 
 		TitleName = item["TitleName"]

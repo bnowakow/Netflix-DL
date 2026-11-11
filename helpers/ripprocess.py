@@ -733,9 +733,9 @@ class ripprocess(object):
             if not moded_decrypter
             else self.bin["mp4decrypt_moded"]
         ]
-        macos = platform.system() == "Darwin"
+        native_bento4 = platform.system() in ("Darwin", "Linux")
         decrypt_command.append("--show-progress")
-        if not macos:
+        if not native_bento4:
             decrypt_command.extend([encrypted, decrypted])
 
         for key in keys:
@@ -744,7 +744,7 @@ class ripprocess(object):
                 "{}:{}".format(key["ID"] if no_kid else key["KID"], key["KEY"])
             )
 
-        if macos:
+        if native_bento4:
             decrypt_command.extend([encrypted, decrypted])
 
         self.logger.info("\nDecrypting KEYS: ")

@@ -1,0 +1,13 @@
+.git
+.env*
+.venv
+.docker-state
+.download-retry.json
+downloads
+configs/Cookies
+configs/Tokens
+configs/KEYS
+bin/BeHappy
+bin/tools
+**/__pycache__
+**/*.pyc

@@ -7,7 +7,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 
-ENV_PATH = Path(__file__).resolve().with_name(".env")
+STATE_DIR = Path(os.environ.get("NETFLIX_STATE_DIR") or Path(__file__).resolve().parent)
+ENV_PATH = STATE_DIR / ".env"
 FIELDS = {
     "NETFLIX_EMAIL": ("email", "enter your email address here"),
     "NETFLIX_PASSWORD": ("password", "enter your password here"),

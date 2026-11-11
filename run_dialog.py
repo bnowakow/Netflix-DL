@@ -8,6 +8,8 @@ from pathlib import Path
 from tempfile import NamedTemporaryFile
 from uuid import uuid4
 
+from netflix_credentials import STATE_DIR
+
 
 MODES = {
     "main": ("Quality first: usually higher bitrate, larger file", ["--main"]),
@@ -25,7 +27,7 @@ TITLE = re.compile(
     r"(?:\w+/)?(?:title|watch)/[0-9]+(?:[/?#].*)?)"
 )
 SELECTION = re.compile(r"[1-9][0-9]*(?:-[1-9][0-9]*)?(?:,\s*[1-9][0-9]*(?:-[1-9][0-9]*)?)*")
-RETRY_FILE = Path(__file__).resolve().with_name(".download-retry.json")
+RETRY_FILE = STATE_DIR / ".download-retry.json"
 
 
 def load_retry():
@@ -150,8 +152,8 @@ def main():
             "3. Click Chrome's Extensions puzzle-piece icon and select "
             "Get cookies.txt LOCALLY.\n"
             "4. Set Export format to Netscape and click Export for the current tab.\n"
-            "5. Save the export to Downloads and run make cookies-copy.\n"
-            "6. Run make run again. Keep the cookie file private."
+            "5. Save the export as configs/Cookies/cookies.txt in the project.\n"
+            "6. Run the app again. Keep the cookie file private."
         )
         store_url = (
             "https://chromewebstore.google.com/detail/get-cookiestxt-locally/"

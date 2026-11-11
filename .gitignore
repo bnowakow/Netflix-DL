@@ -6,3 +6,5 @@
 /configs/Cookies/cookies_nf.txt
 /configs/Tokens/
 __pycache__/
+/.docker-state/
+/configs/KEYS/

@@ -1,0 +1,16 @@
+services:
+  netflix-dl:
+    build: .
+    platform: linux/amd64
+    init: true
+    stdin_open: true
+    tty: true
+    environment:
+      TERM: xterm-256color
+      NETFLIX_STATE_DIR: /state
+    volumes:
+      - ./downloads:/app/downloads
+      - ./configs/Cookies:/app/configs/Cookies
+      - ./configs/Tokens:/app/configs/Tokens
+      - ./configs/KEYS:/app/configs/KEYS
+      - ./.docker-state:/state

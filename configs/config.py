@@ -113,7 +113,7 @@ Config["NETFLIX"] = {
 	"androidEsn": "NFCDIE-03-{}".format(utils().random_hex(30)),
 }
 
-MACOS_BIN = {
+NATIVE_BIN = {
 	"mp4decrypt": "mp4decrypt",
 	"mp4decrypt_moded": "mp4decrypt",
 	"mp4dump": "mp4dump",
@@ -153,8 +153,8 @@ class tool:
 		return Config[service]
 
 	def bin(self):
-		if platform.system() == "Darwin":
-			return MACOS_BIN
+		if platform.system() in ("Darwin", "Linux"):
+			return NATIVE_BIN
 		return BIN
 
 	def vpn(self):

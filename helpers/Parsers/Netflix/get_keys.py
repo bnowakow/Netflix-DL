@@ -23,12 +23,56 @@ def convert_with_wine(wine, filename, data):
 	with TemporaryDirectory() as directory:
 		workdir = Path(directory)
 		(workdir / filename).write_bytes(data)
-		converter = Path(dirPath) / "wv_cvt.exe"
+		bundled = Path(dirPath)
+		for dependency in ("wv_cvt.exe", "widevinecdm.dll", "libcrypto-1_1-x64.dll", "libssl-1_1-x64.dll"):
+			shutil.copyfile(bundled / dependency, workdir / dependency)
+		converter = workdir / "wv_cvt.exe"
+		output_path = workdir / "TempFile_2209"
+		captured_output = workdir / "converted-output"
+		# The helper schedules deletion on reboot. Wine deletes the name immediately.
+		output_path.touch()
+		os.link(output_path, captured_output)
+		environment = os.environ.copy()
+		environment.setdefault("WINEDEBUG", "-all")
+		environment.setdefault("MVK_CONFIG_LOG_LEVEL", "0")
 		try:
-			subprocess.run([wine, str(converter), filename], cwd=workdir, check=True)
-			return (workdir / "TempFile_2209").read_bytes()
-		except (OSError, subprocess.CalledProcessError):
-			raise SystemExit("The bundled license helper failed under Wine on macOS.")
+			subprocess.run(
+				[wine, str(converter), filename], cwd=workdir,
+				env=environment, check=True, timeout=60,
+			)
+		except subprocess.TimeoutExpired:
+			raise SystemExit("The bundled license helper timed out under Wine.")
+		except subprocess.CalledProcessError as error:
+			raise SystemExit(f"The bundled license helper exited under Wine with status {error.returncode}.")
+		except OSError as error:
+			raise SystemExit(f"Could not launch Wine: {error.strerror}.")
+		try:
+			output = captured_output.read_bytes()
+		except OSError:
+			raise SystemExit("The bundled license helper did not create its output file under Wine.")
+		if not output:
+			raise SystemExit("The bundled license helper returned an empty result under Wine.")
+		return output
+
+
+def check_wine_helper():
+	if platform.system() not in ("Darwin", "Linux"):
+		raise SystemExit("This Wine helper check is for macOS and Linux.")
+	wine = shutil.which("wine")
+	if not wine:
+		raise SystemExit("Wine is not on PATH. Finish installing Wine, then run the Wine check again.")
+
+	fixtures = Path(dirPath)
+	print("Checking the bundled request fixture through Wine...", flush=True)
+	request = convert_with_wine(wine, "req_test.bin", (fixtures / "req_test.bin").read_bytes())
+	try:
+		if not base64.b64decode(b"".join(request.split()), validate=True):
+			raise ValueError
+	except ValueError:
+		raise SystemExit("The Wine helper returned an invalid request fixture.")
+	print("Checking the bundled response fixture through Wine...", flush=True)
+	convert_with_wine(wine, "lic_res.b64", (fixtures / "lic_res.b64").read_bytes())
+	print("Both bundled fixtures passed through the Wine helper.")
 
 '''			"av1-main-L20-dash-cbcs-prk",
 			"av1-main-L21-dash-cbcs-prk",
@@ -131,9 +175,9 @@ def __profiles(profile, addHEVCDO=False):
 	return profiles
 
 def GettingKEYS_Netflixv2(nfID, profile, cookies=None, build=None): #
-	macos = platform.system() == "Darwin"
-	wine = shutil.which("wine") if macos else None
-	if macos and not wine:
+	uses_wine = platform.system() in ("Darwin", "Linux")
+	wine = shutil.which("wine") if uses_wine else None
+	if uses_wine and not wine:
 		raise SystemExit("This video needs the bundled Windows license helper. Put a compatible Wine runtime on PATH or run this download on Windows.")
 	
 	KEYS = []
@@ -183,7 +227,7 @@ def GettingKEYS_Netflixv2(nfID, profile, cookies=None, build=None): #
 	)
 	original_challenge = wvdecrypt.get_challenge()
     
-	if macos:
+	if uses_wine:
 		modded_challenge = base64.b64decode(convert_with_wine(wine, "req_test.bin", base64.b64encode(original_challenge)))
 	else:
 		with open(original_license_request_path, "wb") as f:
@@ -203,7 +247,7 @@ def GettingKEYS_Netflixv2(nfID, profile, cookies=None, build=None): #
 		logger.error("MSL LICENSE Error Message: {}".format(data))
 		return KEYS
 
-	if macos:
+	if uses_wine:
 		modded_license = convert_with_wine(wine, "lic_res.b64", license_b64.encode("ascii"))
 	else:
 		with open(original_license_response_path, "w") as f:

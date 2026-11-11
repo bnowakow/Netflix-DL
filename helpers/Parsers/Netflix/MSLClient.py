@@ -32,6 +32,7 @@ class MSLClient:
 		if cookies.get("NetflixId") and cookies.get("SecureNetflixId"):
 			self.manifest_cookies = {key: cookies[key] for key in ("NetflixId", "SecureNetflixId")}
 			self.nf_endpoints["manifest"] = "https://www.netflix.com/nq/msl_v1/cadmium/pbo_manifests/%5E1.0.0/router"
+			self.nf_endpoints["license"] = "https://www.netflix.com/nq/msl_v1/cadmium/pbo_licenses/%5E1.0.0/router"
 			self.user_auth = {
 				"scheme": "NETFLIXID",
 				"authdata": {"netflixid": cookies["NetflixId"], "securenetflixid": cookies["SecureNetflixId"]},
@@ -158,7 +159,7 @@ class MSLClient:
 			self.logger.debug("rsa file not found")
 			self.session_keys["session_keys"] = self.generate_handshake()
 
-	def manifest_request_options(self, name):
+	def msl_request_options(self, name):
 		if not self.manifest_cookies:
 			return {"params": {"reqName": name}} if name == "manifest" else {}
 		return {
@@ -232,7 +233,7 @@ class MSLClient:
 
 		request_data = self.msl_request(payload)
 		response = self.session.post(self.nf_endpoints["manifest"], data=request_data,
-			**self.manifest_request_options("manifest"))
+			**self.msl_request_options("manifest"))
 		if not response.is_success:
 			raise SystemExit(f"Netflix manifest request failed (HTTP {response.status_code}).")
 		if not response.content.strip():
@@ -331,7 +332,7 @@ class MSLClient:
 		response = self.session.post(
 			url=self.nf_endpoints["manifest"],
 			json=request,
-			**self.manifest_request_options("handshake"),
+			**self.msl_request_options("handshake"),
 		)
 		try:
 			if response.json().get("errordata"):
@@ -586,18 +587,30 @@ class MSLClient:
 				}
 			]
 		}
+		if self.manifest_cookies:
+			license_request_data.update(
+				id=int(time.time() * 1000), esn=self.esn, languages=[self.languages], echo="",
+				uiVersion="shakti-v4bf615c3", clientVersion="6.0026.291.011",
+			)
+			params = license_request_data["params"][0]
+			params["sessionId"] = params.pop("drmSessionId")
+			license_request_data["params"] = params
 
 		request_data = self.msl_request(license_request_data)
 
-		resp = self.session.post(url=self.nf_endpoints["license"],data=request_data)
+		resp = self.session.post(
+			url=self.nf_endpoints["license"], data=request_data,
+			**self.msl_request_options("license"),
+		)
+		if not resp.is_success:
+			raise SystemExit(f"Netflix license request failed (HTTP {resp.status_code}).")
+		if not resp.content.strip():
+			raise SystemExit("Netflix returned an empty license response.")
 
-		try:
-			resp.json()
-
-		except ValueError:
-			msl_license_data = json.loads(json.dumps(self.decrypt_response(resp.text)))
-			if msl_license_data.get("result"):
-				return msl_license_data
-			if msl_license_data.get("errormsg"):
-				raise ValueError(msl_license_data["errormsg"])
-		raise ValueError(msl_license_data)
+		license_data = self.decrypt_response(resp.text)
+		if license_data and license_data.get("result"):
+			return license_data
+		error = (license_data or {}).get("error")
+		if isinstance(error, dict) and error.get("code") == "DEVICE_EOL_FINAL":
+			raise SystemExit("Netflix rejected the bundled license client as end of life (DEVICE_EOL_FINAL, 3078).")
+		raise SystemExit("Netflix did not return a usable license.")

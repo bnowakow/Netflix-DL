@@ -1,3 +1,48 @@
+## Docker Desktop
+
+### Windows
+
+Start Docker Desktop in Linux containers mode. Open PowerShell in the project
+folder and build the image:
+
+```powershell
+docker compose build
+docker compose run --rm netflix-dl --help
+```
+
+Export your signed-in Netflix cookies in Netscape format and save the export as
+`configs/Cookies/cookies.txt`. Run the interactive dialog or pass the usual CLI
+arguments:
+
+```powershell
+docker compose run --rm netflix-dl
+docker compose run --rm netflix-dl 80014749 --high
+```
+
+### macOS
+
+Start Docker Desktop and run the same commands from Terminal in the project
+folder. On Apple Silicon, the image runs as `linux/amd64` because the bundled
+Windows helper is x86-64. In Docker Desktop settings, select the Apple
+Virtualization framework and enable Rosetta for amd64 emulation.
+[Docker Desktop settings](https://docs.docker.com/desktop/settings-and-maintenance/settings/)
+
+### Files and diagnostics
+
+Downloads appear in `downloads/netflix` on the host. If you pass `-o` or `-f`,
+use a container path under `/app/downloads` to keep the files on the host.
+Compose also keeps cookies, tokens, cached keys, and dialog retry selections
+across runs. If prompted for fallback credentials, the app saves them to
+`.docker-state/.env`. You can copy an existing app `.env` there before running.
+
+To test the bundled Wine helper with local fixtures:
+
+```sh
+docker compose run --rm netflix-dl wine-check
+```
+
+## Native installation
+
 1. Install python 3.10.7 (or any version from 3.8.x to 3.10.x), be sure to add python to PATH while installing it
 
 https://www.python.org/ftp/python/3.10.7/python-3.10.7-amd64.exe
@@ -28,7 +73,8 @@ https://www.microsoft.com/en-eg/download/details.aspx?id=40784
    ```
 
    For protected video that needs a new license, the bundled `wv_cvt.exe`
-   helper also needs a compatible `wine` executable on `PATH`. Audio and
+   helper also needs a compatible `wine` executable on `PATH`. Run
+   `make wine-check` to test the helper with the bundled fixtures. Audio and
    subtitle downloads can use the native tools without Wine. Windows uses
    the bundled executables.
 

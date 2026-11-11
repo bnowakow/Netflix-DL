@@ -12,7 +12,7 @@ done)
 VENV_PYTHON := $(VENV)/bin/python
 endif
 
-.PHONY: help build run cookies-copy cookies-remove codex-commit claude-commit github-sync install-skills codex-document
+.PHONY: help build run wine-check cookies-copy cookies-remove codex-commit claude-commit github-sync install-skills codex-document
 .DEFAULT_GOAL := help
 
 help:
@@ -20,6 +20,7 @@ help:
 	@printf '  \033[1;94m%s\033[0m\n' 'Application'
 	@printf '    %-16s %s\n' 'build' 'Create the virtual environment and install dependencies'
 	@printf '    %-16s %s\n' 'run' 'Open the download dialog or pass CLI options with ARGS'
+	@printf '    %-16s %s\n' 'wine-check' 'Test the bundled license helper on macOS'
 	@printf '\n'
 	@printf '  \033[1;94m%s\033[0m\n' 'Netflix cookies'
 	@printf '    %-16s %s\n' 'cookies-copy' 'Copy the latest valid Netflix cookie export'
@@ -48,6 +49,9 @@ ifeq ($(origin ARGS),undefined)
 else
 	"$(VENV_PYTHON)" NFripper.py $(ARGS)
 endif
+
+wine-check: build
+	"$(VENV_PYTHON)" -c "from helpers.Parsers.Netflix.get_keys import check_wine_helper; check_wine_helper()"
 
 cookies-copy: $(VENV_PYTHON)
 	"$(VENV_PYTHON)" copy_cookies.py
