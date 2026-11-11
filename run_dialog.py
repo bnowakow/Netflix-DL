@@ -59,7 +59,7 @@ def save_retry(title, seasons, episodes, args):
         "quality_flags": [flag for field, flag in QUALITY_FLAGS.items() if getattr(args, field, False)],
         "attempt": uuid4().hex,
     }
-    if args.customquality:
+    if args.customquality and re.fullmatch(r"[0-9]+", args.customquality[0]):
         saved["resolution"] = args.customquality[0]
     with NamedTemporaryFile(mode="w", encoding="utf-8", dir=RETRY_FILE.parent, delete=False) as file:
         temporary = Path(file.name)
@@ -166,7 +166,10 @@ def main():
         flags = saved.get("quality_flags")
         quality = "Not saved"
         if flags is not None:
-            quality = next((name.title() for name, (_, options) in MODES.items() if options == flags), None)
+            quality = next(
+                (name.title() for name, (_, options) in MODES.items() if set(options) == set(flags)),
+                None,
+            )
             quality = quality or (" ".join(flags) if flags else "Default")
         if saved.get("resolution"):
             quality += f" ({saved['resolution']}p)"
