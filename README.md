@@ -19,6 +19,39 @@ docker compose run --rm netflix-dl
 docker compose run --rm netflix-dl 80014749 --high
 ```
 
+With GNU Make on Windows, the PowerShell launcher builds the image and runs
+the same service. Use `ARGS` for CLI arguments, or omit it to open the dialog.
+
+```powershell
+make docker-run
+make docker-run ARGS="80014749 --high"
+```
+
+If Netflix returns `DEVICE_EOL_FINAL` (3078) and you already have a compatible
+Widevine device, set the path to its exported directory outside the checkout.
+The launcher mounts the directory read-only. See the
+[license issue](WIDEVINE_LICENSE_ISSUE.md) for the expected file names.
+
+```powershell
+$env:NETFLIX_LICENSE_DEVICE_DIR = 'C:\path\to\exported-device'
+make docker-run ARGS="80014749 --high"
+```
+
+If you have a `.wvd` instead of an exported directory, install the standalone
+Pywidevine CLI on the Windows host and put `pywidevine` on PATH. With
+`NETFLIX_LICENSE_DEVICE_DIR` set as above, run:
+
+```powershell
+make export-license-device WVD="C:\path\to\device.wvd"
+```
+
+The export runs locally and writes only the credential files Netflix-DL
+expects. Use a fresh directory to replace an existing export.
+
+You can also invoke the launcher directly with
+`powershell.exe -NoProfile -ExecutionPolicy Bypass -File docker/run-windows.ps1`
+followed by any CLI arguments.
+
 ### macOS
 
 Start Docker Desktop and run the same commands from Terminal in the project

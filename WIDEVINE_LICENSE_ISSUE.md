@@ -24,7 +24,13 @@ A published Windows method extracted an RSA private key from Widevine `4.10.1610
 - `device_client_id_blob`
 - `device_vmp_blob` if available
 
-If you already have a compatible `.wvd` file, run `pywidevine export-device /absolute/path/to/device.wvd` with the standalone Pywidevine CLI. In the generated directory, rename `private_key.der` to `device_private_key`, `client_id.bin` to `device_client_id_blob`, and `vmp.bin` to `device_vmp_blob` if present. Keep the credential files outside the repository. [Pywidevine export command source](https://github.com/devine-dl/pywidevine/blob/master/pywidevine/main.py#L1368)
+If you already have a compatible `.wvd` file, put the standalone Pywidevine CLI
+on PATH and run the export target. Use a destination outside the repository.
+[Pywidevine export command source](https://github.com/devine-dl/pywidevine/blob/master/pywidevine/main.py#L1368)
+
+```sh
+NETFLIX_LICENSE_DEVICE_DIR="/absolute/path/to/exported-folder" make export-license-device WVD="/absolute/path/to/device.wvd"
+```
 
 ```sh
 NETFLIX_LICENSE_DEVICE_DIR="/absolute/path/to/exported-folder" make run

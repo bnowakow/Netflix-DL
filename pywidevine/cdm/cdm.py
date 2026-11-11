@@ -244,9 +244,8 @@ class Cdm:
             license_request.Msg.ClientId.CopyFrom(client_id)
 
         if session.device_config.private_key_available:
-            key = RSA.importKey(
-                open(session.device_config.device_private_key_filename).read()
-            )
+            with open(session.device_config.device_private_key_filename, "rb") as key_file:
+                key = RSA.importKey(key_file.read())
             session.device_key = key
         else:
             self.logger.error("need device private key, other methods unimplemented")
